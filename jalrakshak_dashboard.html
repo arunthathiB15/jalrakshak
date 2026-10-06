@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>JALRAKSHAK — Dam Break Inundation Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#1B1712; --bg2:#211B14; --panel:#241F18; --panel-2:#2B241B;
+    --border:#3B3122; --line:#4A3F2C;
+    --ink:#F1E9DA; --ink-dim:#B7AA92; --ink-faint:#80735E;
+    --rust:#C1602C; --rust-deep:#8F441F;
+    --steel:#4C7E93; --steel-deep:#1F3F4C;
+    --moss:#7D8C4C; --ochre:#C4902E; --crimson:#A23A2B;
+    --radius:3px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:'Work Sans',sans-serif; height:100%;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  body{
+    background-image:
+      radial-gradient(ellipse at 10% 0%, #241E15 0%, transparent 55%),
+      radial-gradient(ellipse at 90% 100%, #201A12 0%, transparent 55%);
+    background-color:var(--bg);
+  }
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+    padding:16px 24px;border-bottom:2px solid var(--rust-deep);
+    background:var(--bg2);}
+  .topbar .brand{display:flex;align-items:baseline;gap:11px;}
+  .topbar h1{font-family:'Fraunces',serif;font-weight:700;font-size:23px;
+    letter-spacing:0.2px;margin:0;color:var(--ink);}
+  .topbar .ps-tag{font-size:10.5px;color:var(--ink-faint);border:1px solid var(--line);
+    padding:3px 8px;border-radius:var(--radius);font-family:'IBM Plex Mono',monospace;
+    letter-spacing:0.3px;}
+  .status{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink-dim);flex-wrap:wrap;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--moss);flex-shrink:0;}
+
+  .layout{display:grid;grid-template-columns:320px 1fr 320px;gap:2px;
+    background:var(--border); min-height:calc(100vh - 61px);}
+  @media (max-width:1000px){.layout{grid-template-columns:1fr;}}
+
+  .panel{background:var(--panel);padding:20px;overflow:auto;}
+  .panel h2{font-family:'Fraunces',serif;font-size:15px;font-weight:600;
+    color:var(--ink);margin:0 0 4px 0;letter-spacing:0.1px;
+    display:flex;align-items:center;justify-content:space-between;}
+  .panel h2 .tag{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--ink-faint);
+    border:1px solid var(--line);padding:2px 6px;border-radius:var(--radius);font-weight:400;}
+  .panel .subhead{font-size:11px;color:var(--ink-faint);margin-bottom:16px;}
+
+  label{display:block;font-size:11.5px;color:var(--ink-dim);margin:16px 0 6px;
+    text-transform:uppercase;letter-spacing:0.5px;}
+  select{width:100%;background:var(--panel-2);border:1px solid var(--line);
+    color:var(--ink);padding:9px 10px;border-radius:var(--radius);font-family:'Work Sans',sans-serif;
+    font-size:13.5px;cursor:pointer;}
+  select:focus{outline:none;border-color:var(--rust);}
+
+  .field{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px 12px;
+    background:var(--panel-2);}
+  .field-top{display:flex;justify-content:space-between;align-items:baseline;}
+  input[type=number]{width:78px;background:transparent;border:none;color:var(--rust);
+    font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:500;text-align:right;padding:0;}
+  input[type=number]:focus{outline:none;}
+  input[type=range]{width:100%;margin-top:8px;accent-color:var(--rust);cursor:pointer;height:20px;}
+
+  .seg{display:flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-top:4px;}
+  .seg button{flex:1;background:var(--panel-2);color:var(--ink-dim);border:none;padding:8px 0;
+    font-size:12.5px;cursor:pointer;font-family:'Work Sans',sans-serif;border-right:1px solid var(--line);}
+  .seg button:last-child{border-right:none;}
+  .seg button.active{background:var(--rust-deep);color:var(--ink);}
+
+  .dam-note{font-size:11px;color:var(--ink-faint);margin-top:6px;font-style:italic;}
+
+  .stat{display:flex;justify-content:space-between;align-items:baseline;
+    padding:9px 0;border-bottom:1px solid var(--line);}
+  .stat:last-child{border-bottom:none;}
+  .stat .k{font-size:12px;color:var(--ink-dim);}
+  .stat .v{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink);}
+  .stat .v.big{font-size:17px;color:var(--rust);font-weight:500;}
+
+  #map{width:100%;height:40vh;min-height:280px;background:var(--bg2);}
+  #map .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(0.88) contrast(0.9) sepia(0.18) saturate(0.65);}
+  #map .leaflet-control-attribution{background:rgba(27,23,18,0.8)!important;color:var(--ink-faint)!important;
+    font-size:9px!important;}
+  #map .leaflet-control-attribution a{color:var(--ink-dim)!important;}
+  #map .leaflet-control-zoom a{background:var(--panel)!important;color:var(--ink)!important;
+    border-color:var(--line)!important;}
+
+  .map-caption{padding:10px 20px;font-size:11.5px;color:var(--ink-faint);
+    border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+    background:var(--bg2);}
+  .map-caption strong{color:var(--ink-dim);}
+  .timeline{padding:14px 20px;background:var(--panel);}
+  .timeline .t-row{display:flex;align-items:center;gap:12px;}
+  .timeline .t-label{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--rust);
+    min-width:66px;}
+  .chart-wrap{padding:16px 20px 4px;background:var(--panel);}
+  canvas#hydroChart{max-height:180px;}
+
+  .xsec-wrap{padding:16px 20px;background:var(--panel);border-top:1px solid var(--border);}
+  .xsec-wrap h3{font-family:'Fraunces',serif;font-size:13px;font-weight:600;margin:0 0 4px;color:var(--ink);}
+  .xsec-wrap .subhead{font-size:11px;color:var(--ink-faint);margin-bottom:10px;}
+  #xsecSvg{width:100%;height:auto;display:block;background:var(--bg2);border:1px solid var(--line);
+    border-radius:var(--radius);}
+
+  .exports{display:flex;gap:8px;margin-top:14px;padding:0 20px 20px;background:var(--panel);flex-wrap:wrap;}
+  .btn{flex:1;min-width:140px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    padding:10px 6px;border-radius:var(--radius);font-size:12px;cursor:pointer;font-family:'Work Sans',sans-serif;}
+  .btn:hover{border-color:var(--rust);color:var(--rust);}
+  .btn.primary{background:var(--rust-deep);border-color:var(--rust-deep);color:var(--ink);}
+  .btn.primary:hover{border-color:var(--rust);color:var(--ink);background:var(--rust);}
+
+  .risk-zone{border:1px solid var(--line);border-radius:var(--radius);padding:12px 13px;margin-bottom:10px;
+    display:flex;align-items:center;gap:12px;background:var(--panel-2);}
+  .risk-zone .swatch{width:4px;height:38px;flex-shrink:0;}
+  .risk-zone.watch .swatch{background:var(--moss);}
+  .risk-zone.alert .swatch{background:var(--ochre);}
+  .risk-zone.critical .swatch{background:var(--crimson);}
+  .risk-zone .body{flex:1;min-width:0;}
+  .risk-zone .name{font-size:12.5px;font-weight:500;}
+  .risk-zone .tier{font-size:11px;color:var(--ink-faint);margin-top:2px;}
+  .risk-zone.critical .tier{color:var(--crimson);}
+  .risk-zone.alert .tier{color:var(--ochre);}
+  .risk-zone.watch .tier{color:var(--moss);}
+
+  .note{font-size:11px;color:var(--ink-faint);line-height:1.55;margin-top:12px;
+    border-left:2px solid var(--line);padding-left:10px;}
+  details.note-toggle{margin-top:12px;}
+  details.note-toggle summary{cursor:pointer;font-size:11.5px;color:var(--ink-dim);
+    border:1px solid var(--line);border-radius:var(--radius);padding:7px 10px;background:var(--panel-2);}
+  details.note-toggle .note{margin-top:8px;border-left:2px solid var(--line);}
+
+  .zoneResult{display:none;margin-top:10px;padding:10px 12px;border:1px solid var(--crimson);
+    border-radius:var(--radius);background:rgba(162,58,43,0.12);font-size:11.5px;color:var(--ink-dim);
+    line-height:1.5;}
+
+  .footer-note{padding:16px 18px;font-size:12px;color:var(--ink-faint);text-align:center;
+    border-top:1px solid var(--border);font-family:'Fraunces',serif;letter-spacing:2px;
+    text-transform:uppercase;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <h1>JALRAKSHAK</h1>
+    <span class="ps-tag">SIH 2026 · PS 26161</span>
+  </div>
+  <div class="status">
+    <button class="btn" id="loadRealBtn" style="padding:7px 13px;flex:none;">Load real results (localhost:8000)</button>
+    <span class="dot" id="statusDot"></span> <span id="statusText">sample scenario loaded</span>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- LEFT: Scenario builder -->
+  <div class="panel">
+    <h2>Scenario builder</h2>
+    <div class="subhead">Pick a dam or drag the sliders — everything recomputes live.</div>
+
+    <label for="damSelect">Dam / river</label>
+    <select id="damSelect"></select>
+    <div class="dam-note" id="damNote"></div>
+
+    <label for="volume">Reservoir volume at failure</label>
+    <div class="field">
+      <div class="field-top">
+        <span style="font-size:11px;color:var(--ink-faint);">million m³</span>
+        <input type="number" id="volume" value="100" min="0.5" step="0.5" />
+      </div>
+      <input type="range" id="volumeRange" min="1" max="300" step="1" value="100" />
+    </div>
+
+    <label for="height">Breach / dam height</label>
+    <div class="field">
+      <div class="field-top">
+        <span style="font-size:11px;color:var(--ink-faint);">metres</span>
+        <input type="number" id="height" value="26" min="2" step="1" />
+      </div>
+      <input type="range" id="heightRange" min="4" max="70" step="1" value="26" />
+    </div>
+
+    <label for="ftime">Breach formation time</label>
+    <div class="field">
+      <div class="field-top">
+        <span style="font-size:11px;color:var(--ink-faint);">hours</span>
+        <input type="number" id="ftime" value="1.0" min="0.1" step="0.1" />
+      </div>
+      <input type="range" id="ftimeRange" min="0.1" max="6" step="0.1" value="1.0" />
+    </div>
+
+    <label>Failure mode</label>
+    <div class="seg">
+      <button id="modeOver" class="active" type="button">Overtopping</button>
+      <button id="modePipe" type="button">Piping</button>
+    </div>
+
+    <label style="margin-top:22px;">Computed breach parameters</label>
+    <div class="stat"><span class="k">Avg. breach width</span><span class="v" id="outWidth">—</span></div>
+    <div class="stat"><span class="k">Peak discharge (mass-conservative)</span><span class="v big" id="outQpeak">—</span></div>
+    <div class="stat"><span class="k">Total volume released</span><span class="v" id="outVol">—</span></div>
+
+    <div class="note">
+      Live client-side recompute of the Froehlich (2008) breach-width + broad-crested-weir +
+      mass-conservation logic from <code>breach_hydrograph.py</code>. Dam figures here are
+      approximate placeholders — verify exact height/storage against NRLD/India-WRIS before
+      your final submission.
+    </div>
+  </div>
+
+  <!-- CENTER: Map + timeline + hydrograph + cross-section -->
+  <div>
+    <div id="map"></div>
+    <div class="map-caption" id="mapCaption">
+      Flood extent shown is an <strong>illustrative scaled polygon</strong> for this sample run —
+      swap in the real <code>outputs/flood_extent.geojson</code> from <code>run_demo.py</code>
+      once run against your DEM.
+    </div>
+    <div class="timeline">
+      <div class="t-row">
+        <span class="t-label mono" id="tLabel">t = 0 min</span>
+        <input type="range" id="timeSlider" min="0" max="100" value="0" />
+        <span class="t-label mono" id="areaLabel">0.00 km²</span>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="hydroChart"></canvas>
+    </div>
+
+    <div class="xsec-wrap">
+      <h3>Breach cross-section (schematic)</h3>
+      <div class="subhead">Illustrative dam profile — breach opens and water rises with the timeline slider above.</div>
+      <svg id="xsecSvg" viewBox="0 0 600 200" preserveAspectRatio="xMidYMid meet">
+        <!-- ground -->
+        <path d="M0,180 L600,180 L600,200 L0,200 Z" fill="#2B241B"/>
+        <!-- dam body (left block), breach notch cut via two rects updated in JS -->
+        <rect id="xsecDamLeft" x="60" y="60" width="80" height="120" fill="#4A3F2C" stroke="#5c4f38" stroke-width="1"/>
+        <rect id="xsecDamRight" x="200" y="60" width="80" height="120" fill="#4A3F2C" stroke="#5c4f38" stroke-width="1"/>
+        <!-- reservoir water (left of dam) -->
+        <rect id="xsecReservoir" x="0" y="90" width="60" height="90" fill="#355F70" opacity="0.75"/>
+        <!-- downstream ground slope -->
+        <path d="M280,180 L600,165 L600,180 Z" fill="#2B241B"/>
+        <!-- downstream flood water, height/width driven by JS -->
+        <rect id="xsecFlood" x="280" y="180" width="0" height="0" fill="#4C7E93" opacity="0.7"/>
+        <text x="20" y="45" fill="#B7AA92" font-size="11" font-family="IBM Plex Mono, monospace">reservoir</text>
+        <text x="420" y="45" fill="#B7AA92" font-size="11" font-family="IBM Plex Mono, monospace">downstream</text>
+      </svg>
+    </div>
+
+    <div class="exports">
+      <button class="btn primary" id="downloadKml" type="button">Download flood extent (.kml)</button>
+      <button class="btn" id="downloadGeojson" type="button">Download (.geojson)</button>
+      <button class="btn" id="downloadReport" type="button">Download situation summary (.txt)</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Weak-zone risk panel -->
+  <div class="panel">
+    <h2>Weak-zone risk panel <span class="tag">illustrative</span></h2>
+    <div class="subhead">Sample anomaly scores for the selected dam.</div>
+
+    <div id="zoneList"></div>
+
+    <button class="btn primary" id="runZoneBtn" style="width:100%;margin-top:8px;" type="button">Run pre-emptive simulation on critical zone</button>
+    <div id="zoneResult" class="zoneResult"></div>
+
+    <details class="note-toggle">
+      <summary>What's real vs. placeholder here?</summary>
+      <div class="note">
+        Risk index shown is from placeholder anomaly scores, not live satellite analysis.
+        The designed version scores SAR backscatter/coherence change (deformation), Sentinel-2
+        NDWI/NDVI anomaly (seepage), and Landsat thermal anomaly against each dam's own seasonal
+        baseline — see Section 4 of the solution document (explainable risk scoring, not
+        deterministic failure prediction). Wire this panel to that pipeline once it exists.
+      </div>
+    </details>
+  </div>
+
+</div>
+
+<div class="footer-note">JALRAKSHAK</div>
+
+<script>
+"use strict";
+
+// ============================================================
+// SAMPLE DAM PRESETS
+// Figures are approximate/order-of-magnitude placeholders for demo
+// purposes -- verify exact height/storage against NRLD/India-WRIS
+// before citing them in your final report.
+// ============================================================
+const DAMS = [
+  { id:"machhu", name:"Machhu-II Dam — Morbi, Gujarat", lat:22.8210, lng:70.8350,
+    volume:100, height:26, ftime:1.0, mode:"overtopping",
+    note:"Real 1979 catastrophic failure — use as your validation case.",
+    zones:[
+      {name:"Spillway crest", tier:"watch", detail:"Watch · within baseline"},
+      {name:"Downstream toe", tier:"alert", detail:"Alert · seepage anomaly"},
+      {name:"Left earthen embankment", tier:"critical", detail:"Critical · rising 4 days"}
+    ]},
+  { id:"mullaperiyar", name:"Mullaperiyar Dam — Kerala / Tamil Nadu", lat:9.5270, lng:77.1360,
+    volume:440, height:53, ftime:2.0, mode:"piping",
+    note:"Century-old dam with a well-known ongoing seepage/safety concern.",
+    zones:[
+      {name:"Baby dam (secondary)", tier:"watch", detail:"Watch · within baseline"},
+      {name:"Main dam masonry face", tier:"alert", detail:"Alert · minor deformation"},
+      {name:"Masonry core — historic seepage zone", tier:"critical", detail:"Critical · known concern"}
+    ]},
+  { id:"hirakud", name:"Hirakud Dam — Odisha (Mahanadi)", lat:21.5340, lng:83.8650,
+    volume:5800, height:61, ftime:3.0, mode:"overtopping",
+    note:"One of the largest reservoirs in India — tests the model at scale.",
+    zones:[
+      {name:"Left dyke", tier:"watch", detail:"Watch · within baseline"},
+      {name:"Right dyke", tier:"alert", detail:"Alert · seepage anomaly"},
+      {name:"Main spillway gates", tier:"critical", detail:"Critical · flagged for inspection"}
+    ]},
+  { id:"rishiganga", name:"Rishiganga sector — Chamoli, Uttarakhand", lat:30.5500, lng:79.7300,
+    volume:5, height:10, ftime:0.3, mode:"piping",
+    note:"Small, fast-forming — echoes the 2021 GLOF-triggered flash flood.",
+    zones:[
+      {name:"Downstream barrage", tier:"watch", detail:"Watch · within baseline"},
+      {name:"River channel constriction", tier:"alert", detail:"Alert · debris buildup"},
+      {name:"Upstream landslide-dammed ridge", tier:"critical", detail:"Critical · rapid change"}
+    ]},
+];
+
+// ============================================================
+// Small helpers used across blocks
+// ============================================================
+const $ = (id) => document.getElementById(id);
+function log(label, err){ console.error("[JALRAKSHAK] " + label + " failed:", err); }
+
+let mode = "overtopping";
+let lastResult = null;
+let currentDam = DAMS[0];
+let map, floodLayer, breachMarker, hydroChart;
+const breachLatLng = [22.8210, 70.8350];
+
+// ============================================================
+// Breach hydrograph engine (mirrors breach_hydrograph.py) -- pure
+// math, no DOM/library dependency, safe to define unconditionally.
+// ============================================================
+const G = 9.81;
+function froehlichWidth(volM3, hbM, failMode){
+  const ko = failMode === "overtopping" ? 1.4 : 1.0;
+  return 0.27 * ko * Math.pow(volM3, 0.32) * Math.pow(hbM, 0.04);
+}
+function sideSlope(failMode){ return failMode === "overtopping" ? 1.0 : 0.7; }
+function peakWeir(bAvg, hb, z, cd){
+  cd = cd || 1.7;
+  const bBottom = Math.max(bAvg - z*hb, 0.5);
+  const rect = bBottom * Math.sqrt(2*G) * Math.pow(hb, 1.5);
+  const tri = (8/15) * z * Math.sqrt(2*G) * Math.pow(hb, 2.5);
+  return cd * (rect + tri);
+}
+function trapz(y, x){
+  let s = 0;
+  for(let i=1;i<y.length;i++){ s += (y[i]+y[i-1])/2 * (x[i]-x[i-1]); }
+  return s;
+}
+function generateHydrograph(volM3, hbM, tfHr, failMode, nSteps){
+  nSteps = nSteps || 160;
+  const bAvg = froehlichWidth(volM3, hbM, failMode);
+  const z = sideSlope(failMode);
+  const qPeak = peakWeir(bAvg, hbM, z);
+  const tf = tfHr * 3600;
+  const nRise = Math.max(2, Math.floor(nSteps/3));
+  const tRise = Array.from({length:nRise}, (_,i)=> tf * i/(nRise-1));
+  const qRise = tRise.map(t => qPeak * Math.pow(t/tf, 1.5));
+  const tau = Math.max(tf, 60);
+  const nFall = Math.max(2, nSteps - nRise);
+  const tFall = Array.from({length:nFall}, (_,i)=> tf + 6*tau*i/(nFall-1));
+  const qFall = tFall.map(t => qPeak * Math.exp(-(t-tf)/tau));
+  const t = tRise.concat(tFall);
+  const qShape = qRise.concat(qFall);
+  const shapeVol = trapz(qShape, t);
+  const scale = shapeVol > 0 ? volM3/shapeVol : 1;
+  const q = qShape.map(v => v*scale);
+  const qPeakFinal = Math.max.apply(null, q);
+  return {t:t, q:q, bAvg:bAvg, z:z, qPeakWeir:qPeak, qPeakFinal:qPeakFinal, totalVol:trapz(q,t)};
+}
+
+// ============================================================
+// recompute() -- central function, called whenever an input changes.
+// Guarded so a failure in one consumer (map/chart/xsec) can't stop
+// the others from updating.
+// ============================================================
+function recompute(){
+  const volM3 = parseFloat($("volume").value) * 1e6;
+  const hb = parseFloat($("height").value);
+  const tfHr = parseFloat($("ftime").value);
+  if(!volM3 || !hb || !tfHr) return;
+  const r = generateHydrograph(volM3, hb, tfHr, mode);
+  lastResult = r;
+
+  try {
+    $("outWidth").textContent = r.bAvg.toFixed(1) + " m";
+    $("outQpeak").textContent = Math.round(r.qPeakFinal).toLocaleString() + " m³/s";
+    $("outVol").textContent = (r.totalVol/1e6).toFixed(2) + " M m³";
+  } catch(e){ log("stat display", e); }
+
+  try {
+    if(hydroChart){
+      hydroChart.data.labels = r.t.map(v => (v/60).toFixed(0));
+      hydroChart.data.datasets[0].data = r.q.map(v => Math.round(v));
+      hydroChart.data.datasets[0].label = "Breach discharge (m³/s)";
+      hydroChart.update();
+    }
+  } catch(e){ log("hydroChart update", e); }
+
+  try { updateMapScale(r); } catch(e){ log("map update", e); }
+  try { updateCrossSection(r, parseFloat($("timeSlider").value)); } catch(e){ log("cross-section update", e); }
+}
+
+// ============================================================
+// Dam preset application
+// ============================================================
+function setField(key, val, rmin, rmax){
+  $(key).value = val;
+  const r = $(key+"Range");
+  r.min = rmin; r.max = rmax; r.value = val;
+}
+
+function applyDamPreset(d){
+  currentDam = d;
+  try { $("damNote").textContent = d.note; } catch(e){ log("dam note", e); }
+
+  mode = d.mode; setModeBtns();
+  setField("volume", d.volume, Math.max(0.5, d.volume*0.15), d.volume*3.5);
+  setField("height", d.height, Math.max(2, d.height*0.4), d.height*1.8);
+  setField("ftime", d.ftime, 0.1, Math.max(6, d.ftime*3));
+
+  try {
+    if(map){
+      map.setView([d.lat, d.lng], 12);
+      breachLatLng[0] = d.lat; breachLatLng[1] = d.lng;
+      if(breachMarker) breachMarker.setLatLng(breachLatLng);
+    }
+  } catch(e){ log("map recenter on dam change", e); }
+
+  try { renderZones(d); } catch(e){ log("zone render", e); }
+  try { $("zoneResult").style.display = "none"; } catch(e){}
+
+  recompute();
+}
+
+function setModeBtns(){
+  $("modeOver").classList.toggle("active", mode==="overtopping");
+  $("modePipe").classList.toggle("active", mode==="piping");
+}
+
+// ============================================================
+// Risk zone panel (dam-specific)
+// ============================================================
+function renderZones(d){
+  const list = $("zoneList");
+  list.innerHTML = "";
+  d.zones.forEach(z => {
+    const div = document.createElement("div");
+    div.className = "risk-zone " + z.tier;
+    div.innerHTML =
+      '<div class="swatch"></div><div class="body">' +
+      '<div class="name">' + z.name + '</div>' +
+      '<div class="tier">' + z.detail + '</div></div>';
+    list.appendChild(div);
+  });
+  const critical = d.zones.find(z => z.tier === "critical") || d.zones[d.zones.length-1];
+  $("runZoneBtn").textContent = "Run pre-emptive simulation on " + critical.name;
+}
+
+// ============================================================
+// INIT BLOCKS -- each wrapped independently so one failure can't
+// take down the rest of the dashboard.
+// ============================================================
+
+function initModeButtons(){
+  $("modeOver").addEventListener("click", () => { mode="overtopping"; setModeBtns(); recompute(); });
+  $("modePipe").addEventListener("click", () => { mode="piping"; setModeBtns(); recompute(); });
+}
+
+function initFieldSync(){
+  ["volume","height","ftime"].forEach(key => {
+    const num = $(key);
+    const range = $(key+"Range");
+    num.addEventListener("input", () => { range.value = num.value; recompute(); });
+    range.addEventListener("input", () => { num.value = range.value; recompute(); });
+  });
+}
+
+function initDamSelect(){
+  const sel = $("damSelect");
+  DAMS.forEach((d,i) => {
+    const opt = document.createElement("option");
+    opt.value = i; opt.textContent = d.name;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener("change", () => applyDamPreset(DAMS[sel.value]));
+}
+
+function initChart(){
+  const ctx = $("hydroChart").getContext("2d");
+  hydroChart = new Chart(ctx, {
+    type: "line",
+    data: { labels: [], datasets: [{
+      label: "Breach discharge (m³/s)", data: [], borderColor: "#C1602C",
+      backgroundColor: "rgba(193,96,44,0.14)", fill: true, pointRadius: 0, borderWidth: 2, tension: 0.25
+    }]},
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, title:{display:true, text:"Breach outflow hydrograph",
+        color:"#B7AA92", font:{family:"Work Sans", size:11}}},
+      scales:{
+        x:{ title:{display:true,text:"minutes",color:"#80735E",font:{size:10}}, ticks:{color:"#80735E",maxTicksLimit:8}, grid:{color:"#3B3122"} },
+        y:{ title:{display:true,text:"m³/s",color:"#80735E",font:{size:10}}, ticks:{color:"#80735E"}, grid:{color:"#3B3122"} }
+      }
+    }
+  });
+}
+
+function ringPolygon(centerLat, centerLng, radiusDeg, downstreamBiasDeg, jitterSeed){
+  const pts = [];
+  const n = 24;
+  for(let i=0;i<=n;i++){
+    const ang = (i/n) * Math.PI * 2;
+    const j = 1 + 0.15*Math.sin(ang*3 + jitterSeed);
+    const lat = centerLat + Math.sin(ang) * radiusDeg * 0.6 * j;
+    const lng = centerLng + downstreamBiasDeg + Math.cos(ang) * radiusDeg * j;
+    pts.push([lat, lng]);
+  }
+  return pts;
+}
+
+function updateMapScale(r){
+  if(!map || !floodLayer) return;
+  floodLayer.clearLayers();
+  const baseline = 3000;
+  const scale = Math.sqrt(Math.max(r.qPeakFinal,1) / baseline);
+  const nRings = 4;
+  for(let i=nRings;i>=1;i--){
+    const frac = i/nRings;
+    const radius = 0.045 * scale * frac;
+    const bias = 0.01 + 0.05 * scale * frac;
+    const pts = ringPolygon(breachLatLng[0], breachLatLng[1], radius, bias, i);
+    const depthColor = i===nRings ? "#1F3F4C" : (i>=nRings/2 ? "#355F70" : "#4C7E93");
+    L.polygon(pts, {color: depthColor, weight:1, fillColor: depthColor, fillOpacity: 0.6}).addTo(floodLayer);
+  }
+  const areaKm2 = (0.045*scale)**2 * 3.14 * 111*111 * 0.4;
+  $("areaLabel").textContent = areaKm2.toFixed(2) + " km²";
+}
+
+function initMap(){
+  map = L.map('map', {zoomControl:true, attributionControl:true}).setView(breachLatLng, 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, subdomains:'abc',
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  breachMarker = L.circleMarker(breachLatLng, {radius:6, color:"#C1602C", fillColor:"#C1602C", fillOpacity:1}).addTo(map)
+    .bindTooltip("Breach location (sample)", {permanent:false});
+  floodLayer = L.layerGroup().addTo(map);
+}
+
+function initTimeSlider(){
+  $("timeSlider").addEventListener("input", (e)=>{
+    const pct = parseFloat(e.target.value);
+    const label = lastResult ? (lastResult.t[lastResult.t.length-1]/60 * pct/100).toFixed(0) : pct;
+    $("tLabel").textContent = "t = " + label + " min";
+    if(floodLayer){
+      let i=0;
+      floodLayer.eachLayer(layer=>{
+        i++;
+        const show = pct/100 >= (i/4)*0.6;
+        layer.setStyle({fillOpacity: show ? 0.6 : 0.05, opacity: show ? 1 : 0.1});
+      });
+    }
+    if(lastResult) updateCrossSection(lastResult, pct);
+  });
+}
+
+// ---------- Cross-section (safe SVG, no external library) ----------
+function updateCrossSection(r, pctRaw){
+  const pct = Math.max(0, Math.min(100, pctRaw || 0)) / 100;
+  // Breach notch: dam left block right edge moves left, right block left edge moves right,
+  // opening a growing gap between x=140 and x=200 at full width.
+  const gapHalf = 30 * pct; // up to 30px each side -> 60px full gap
+  const damLeft = $("xsecDamLeft");
+  const damRight = $("xsecDamRight");
+  if(damLeft) damLeft.setAttribute("width", 80 - gapHalf);
+  if(damRight){ damRight.setAttribute("x", 200 + gapHalf); damRight.setAttribute("width", 80 - gapHalf); }
+
+  // Downstream flood water grows with pct AND with scenario severity (qPeakFinal)
+  const severity = r ? Math.min(1, Math.sqrt(Math.max(r.qPeakFinal,1)) / 90) : 0.3;
+  const floodWidth = 320 * pct * (0.4 + 0.6*severity);
+  const floodHeight = 60 * pct * (0.4 + 0.6*severity);
+  const flood = $("xsecFlood");
+  if(flood){
+    flood.setAttribute("width", Math.max(0, floodWidth));
+    flood.setAttribute("height", Math.max(0, floodHeight));
+    flood.setAttribute("y", 180 - Math.max(0, floodHeight));
+  }
+  // Reservoir drains slightly as pct increases, for visual feedback
+  const reservoir = $("xsecReservoir");
+  if(reservoir) reservoir.setAttribute("height", 90 - 15*pct);
+  if(reservoir) reservoir.setAttribute("y", 90 + 15*pct);
+}
+
+// ---------- Export buttons ----------
+function currentRingsAsGeoJSON(){
+  const features = [];
+  if(floodLayer){
+    floodLayer.eachLayer(layer=>{
+      const latlngs = layer.getLatLngs()[0].map(ll => [ll.lng, ll.lat]);
+      latlngs.push(latlngs[0]);
+      features.push({type:"Feature", properties:{}, geometry:{type:"Polygon", coordinates:[latlngs]}});
+    });
+  }
+  return {type:"FeatureCollection", features:features};
+}
+function downloadBlob(content, filename, mimeType){
+  const blob = new Blob([content], {type: mimeType});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function geojsonToKml(gj){
+  const placemarks = gj.features.map((f,idx)=>{
+    const coords = f.geometry.coordinates[0].map(c=>c.join(",")+",0").join(" ");
+    return "<Placemark><name>Flood ring " + (idx+1) + "</name><Polygon><outerBoundaryIs><LinearRing>" +
+      "<coordinates>" + coords + "</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>";
+  }).join("");
+  return '<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document>' + placemarks + "</Document></kml>";
+}
+
+function initExportButtons(){
+  $("downloadKml").addEventListener("click", () => {
+    downloadBlob(geojsonToKml(currentRingsAsGeoJSON()), "jalrakshak_flood_extent_sample.kml", "application/vnd.google-earth.kml+xml");
+  });
+  $("downloadGeojson").addEventListener("click", () => {
+    downloadBlob(JSON.stringify(currentRingsAsGeoJSON(), null, 2), "jalrakshak_flood_extent_sample.geojson", "application/geo+json");
+  });
+  $("downloadReport").addEventListener("click", () => {
+    if(!lastResult) return;
+    const r = lastResult;
+    const txt = "JALRAKSHAK — Situation Summary (sample run)\n" +
+      "Dam/river: " + currentDam.name + "\n" +
+      "Failure mode: " + mode + "\n" +
+      "Breach avg width: " + r.bAvg.toFixed(1) + " m\n" +
+      "Peak discharge (mass-conservative): " + Math.round(r.qPeakFinal) + " m3/s\n" +
+      "Total volume released: " + (r.totalVol/1e6).toFixed(2) + " million m3\n" +
+      "Note: illustrative prototype output. Replace with run_demo.py results against a real DEM before submission.\n";
+    downloadBlob(txt, "jalrakshak_situation_summary.txt", "text/plain");
+  });
+}
+
+// ---------- Pre-emptive simulation on the flagged critical zone ----------
+function initZoneSimButton(){
+  const btn = $("runZoneBtn");
+  const resultBox = $("zoneResult");
+  let prevState = null;
+
+  btn.addEventListener("click", () => {
+    if(btn.dataset.running === "1") return;
+    btn.dataset.running = "1";
+    const originalLabel = btn.textContent;
+    btn.textContent = "Running pre-emptive simulation…";
+    resultBox.style.display = "none";
+
+    prevState = {
+      volume: $("volume").value, height: $("height").value,
+      ftime: $("ftime").value, mode: mode
+    };
+
+    setTimeout(() => {
+      const fasterTf = Math.max(0.15, parseFloat(prevState.ftime) * 0.35);
+      $("ftime").value = fasterTf.toFixed(2);
+      $("ftimeRange").value = fasterTf.toFixed(2);
+      mode = "piping"; setModeBtns();
+      recompute();
+
+      const critical = currentDam.zones.find(z => z.tier === "critical") || currentDam.zones[currentDam.zones.length-1];
+      resultBox.style.display = "block";
+      resultBox.innerHTML =
+        '<strong style="color:var(--crimson);">Pre-emptive run complete — ' + critical.name + ' worst case.</strong><br/>' +
+        "Breach formation time shortened to " + fasterTf.toFixed(2) + " hr (weak-zone assumption).<br/>" +
+        "Peak discharge: <strong>" + Math.round(lastResult.qPeakFinal).toLocaleString() + " m³/s</strong> · " +
+        "Total volume released: <strong>" + (lastResult.totalVol/1e6).toFixed(2) + " M m³</strong>.<br/>" +
+        '<span style="color:var(--ink-faint);">Map, hydrograph, and cross-section above now show this scenario.</span>' +
+        '<br/><button class="btn" id="restoreBtn" type="button" style="margin-top:8px;width:100%;">Restore previous scenario</button>';
+
+      $("restoreBtn").addEventListener("click", () => {
+        $("volume").value = prevState.volume; $("volumeRange").value = prevState.volume;
+        $("height").value = prevState.height; $("heightRange").value = prevState.height;
+        $("ftime").value = prevState.ftime; $("ftimeRange").value = prevState.ftime;
+        mode = prevState.mode; setModeBtns();
+        recompute();
+        resultBox.style.display = "none";
+      });
+
+      btn.textContent = originalLabel;
+      btn.dataset.running = "0";
+    }, 900);
+  });
+}
+
+// ---------- Load real results from local FastAPI server ----------
+function initRealResultsLoader(){
+  const API_BASE = "http://localhost:8000";
+  let realExtentLayer = null;
+
+  $("loadRealBtn").addEventListener("click", async () => {
+    const statusText = $("statusText");
+    const statusDot = $("statusDot");
+    statusText.textContent = "loading real results...";
+    try {
+      const [bundleRes, extentRes] = await Promise.all([
+        fetch(API_BASE + "/bundle"),
+        fetch(API_BASE + "/extent")
+      ]);
+      if(!bundleRes.ok || !extentRes.ok) throw new Error("server returned an error (did you run run_demo.py yet?)");
+      const bundle = await bundleRes.json();
+      const extent = await extentRes.json();
+
+      $("outWidth").textContent = bundle.params.breach_avg_width_m.toFixed(1) + " m";
+      $("outQpeak").textContent = Math.round(bundle.params.peak_discharge_mass_conservative_cumecs).toLocaleString() + " m³/s";
+      $("outVol").textContent = (bundle.params.total_volume_released_m3/1e6).toFixed(2) + " M m³";
+
+      if(hydroChart){
+        hydroChart.data.labels = bundle.hydrograph.time_min.map(v => v.toFixed(0));
+        hydroChart.data.datasets[0].data = bundle.hydrograph.discharge_cumecs;
+        hydroChart.data.datasets[0].label = "Breach discharge (m³/s) — real run_demo.py output";
+        hydroChart.update();
+      }
+
+      if(floodLayer) floodLayer.clearLayers();
+      if(realExtentLayer && map) map.removeLayer(realExtentLayer);
+      realExtentLayer = L.geoJSON(extent, {
+        style: {color:"#1F3F4C", weight:1, fillColor:"#4C7E93", fillOpacity:0.55}
+      }).addTo(map);
+      try { map.fitBounds(realExtentLayer.getBounds(), {maxZoom:14}); } catch(e){}
+
+      $("areaLabel").textContent = bundle.max_inundated_area_km2.toFixed(2) + " km²";
+      $("mapCaption").innerHTML = "Showing your <strong>real</strong> outputs/flood_extent.geojson from run_demo.py.";
+
+      statusDot.style.background = "#7D8C4C";
+      statusText.textContent = "real results loaded ✓";
+    } catch(err) {
+      statusDot.style.background = "#A23A2B";
+      statusText.textContent = "couldn't reach local server";
+      alert(
+        "Couldn't load real results from " + API_BASE + ".\n\n" +
+        "Checklist:\n" +
+        "1. Is `uvicorn api:app --reload --port 8000` running in a terminal?\n" +
+        "2. Did you run `python run_demo.py` at least once (so outputs/ files exist)?\n" +
+        "3. Are you opening this dashboard via a local server (e.g. `python -m http.server 5500` " +
+        "then http://localhost:5500/jalrakshak_dashboard.html) rather than double-clicking the file?\n\n" +
+        "Error detail: " + err.message
+      );
+    }
+  });
+}
+
+// ============================================================
+// Run every init block independently -- a failure in one does not
+// stop the others from running.
+// ============================================================
+[
+  initModeButtons,
+  initFieldSync,
+  initDamSelect,
+  initChart,
+  initMap,
+  initTimeSlider,
+  initExportButtons,
+  initZoneSimButton,
+  initRealResultsLoader,
+].forEach(fn => {
+  try { fn(); } catch(e) { log(fn.name, e); }
+});
+
+try { applyDamPreset(DAMS[0]); } catch(e){ log("applyDamPreset(initial)", e); }
+</script>
+</body>
+</html>

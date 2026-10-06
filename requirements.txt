@@ -1,0 +1,7 @@
+numpy
+rasterio
+geopandas
+shapely
+fiona
+fastapi
+uvicorn
